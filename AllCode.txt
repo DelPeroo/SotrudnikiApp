@@ -1,0 +1,499 @@
+﻿// ==========================================
+// ФАЙЛ: MenuPrint.cs
+// ==========================================
+
+
+namespace dz1chernovik.Button
+{
+    public static class MenuPrint
+    {
+        public static void MenuPaint(Dictionary<int, IMenuComand> buttons)
+        {
+
+            Console.WriteLine("=== МЕНЮ ===");
+            foreach (var i in buttons)
+            {
+                Console.WriteLine($"{i.Key}. {i.Value.Description}");
+            }
+        }
+
+        public static void Pause()
+        {
+            Console.WriteLine("\nНажмите любую клавишу, чтобы вернуться в меню...");
+            Console.ReadKey(true);
+        }
+    }
+}
+
+
+// ==========================================
+// ФАЙЛ: Program.cs
+// ==========================================
+using dz1chernovik.Button;
+using System;
+using System.ComponentModel.Design;
+
+static class Program
+{
+    static void Main()
+    {
+        var db = new JsonDatabase("db.json");
+
+        var MenuButton = new AllButton(db);
+        var MenuButtons = MenuButton.GetButtons();
+        while (true)
+        {
+            
+            MenuPrint.MenuPaint(MenuButtons);
+            int choice = Proverka.IdRead("Выберете пункт");
+            if (MenuButtons.TryGetValue(choice, out var button))
+            {
+                button.Execute();
+            }
+            else
+            {
+                Console.WriteLine("Неверная команда");
+            }
+
+            MenuPrint.Pause();
+        }
+    }
+}
+
+
+// ==========================================
+// ФАЙЛ: Proverka.cs
+// ==========================================
+using System;
+
+public static class Proverka
+{
+    
+
+    public static DateOnly DateRead(string stroka)
+    {
+        Console.WriteLine(stroka);
+        while (true)
+        {
+            if (DateOnly.TryParse(Console.ReadLine(), out DateOnly date))
+                return date;
+
+            Console.WriteLine("Дата введена не правильно, введите дату в формате ГГГГ.ММ.ДД (или ДД.ММ.ГГГГ)");
+        }
+    }
+
+    public static int IdRead(string stroka)
+    {
+        Console.WriteLine(stroka);
+        while (true)
+        {
+            if (int.TryParse(Console.ReadLine(), out int id))
+                return id;
+
+            Console.WriteLine("Введите корректное число!");
+        }
+    }
+
+    public static string StringRead(string stroka, string defaultValue = "Отсутствует")
+    {
+        Console.WriteLine(stroka);
+        string? input = Console.ReadLine();
+        return string.IsNullOrWhiteSpace(input) ? defaultValue : input;
+    }  
+}
+
+
+// ==========================================
+// ФАЙЛ: AddNewButton.cs
+// ==========================================
+using System.Runtime.CompilerServices;
+
+namespace dz1chernovik.Button
+{
+    internal class AddNewButton : IMenuComand
+    {
+        private readonly JsonDatabase _db;
+        public string Description => "Добавить нового сотрудника";
+        public AddNewButton(JsonDatabase db) => _db = db;
+
+        public void Execute()
+        {
+            
+            Console.WriteLine("=== ДОБАВЛЕНИЕ СОТРУДНИКА ===");
+            string name = Proverka.StringRead("Введите имя:");
+            DateOnly date = Proverka.DateRead("Введите дату:");
+            _db.Add(new Sotrudnik { Name = name, Date = date });
+            Console.WriteLine("Сотрудник успешно добавлен.");
+        }
+    }
+}
+
+
+
+// ==========================================
+// ФАЙЛ: AllButton.cs
+// ==========================================
+
+
+namespace dz1chernovik.Button
+{
+
+    internal class AllButton
+    {
+        private readonly JsonDatabase _db;
+        private readonly Dictionary<int, IMenuComand> _buttons = new();
+        public AllButton(JsonDatabase db)
+        {
+            _db = db;
+
+            var commandList = new List<IMenuComand>
+        {
+            new ShowAllButton(_db),
+            new AddNewButton(_db),
+            new ChangeSotrudnikButton(_db),
+            new DeleteButton(_db),
+            new ExitButton(_db)
+        };
+
+            
+            int number = 1;
+            foreach (var button in commandList)
+            {
+                _buttons.Add(number, button);
+                number++;
+            }
+             
+        }
+        public Dictionary<int, IMenuComand> GetButtons() => _buttons;
+    }
+}
+
+
+// ==========================================
+// ФАЙЛ: ChangeSotrudnikButton.cs
+// ==========================================
+namespace dz1chernovik.Button
+{
+    internal class ChangeSotrudnikButton : IMenuComand
+    {
+        private readonly JsonDatabase _db;
+        public string Description => "Изменение сотрудника";
+        public ChangeSotrudnikButton(JsonDatabase db) => _db = db;
+
+        public void Execute()
+        {
+
+            int newId = Proverka.IdRead("Введите ID сотрудника, которого хотите изменить:");
+            Sotrudnik? sotrudnik = _db.GetById(newId);
+
+            if (sotrudnik == null)
+            {
+                Console.WriteLine("Сотрудник с таким ID не найден.");
+                return;
+            }
+
+            string newName = Proverka.StringRead("Введите новое имя:");
+            Console.WriteLine("\n[Enter] — Ввести новую дату\n[Escape или любая другая] — Оставить прежнюю дату");
+            ConsoleKeyInfo key = Console.ReadKey(true);
+
+            DateOnly finalDate = sotrudnik.Date;
+            if (key.Key == ConsoleKey.Enter)
+            {
+                finalDate = Proverka.DateRead("Введите дату в формате ГГГГ.ММ.ДД:");
+            }
+            else
+            {
+                Console.WriteLine("Смена даты пропущена.");
+            }
+
+            _db.Update(new Sotrudnik { Id = newId, Name = newName, Date = finalDate });
+            Console.WriteLine("Сотрудник успешно изменен!");
+            
+        }
+    }
+}
+
+
+
+// ==========================================
+// ФАЙЛ: DeleteButton.cs
+// ==========================================
+namespace dz1chernovik.Button
+{
+    internal class DeleteButton : IMenuComand
+    {
+        private readonly JsonDatabase _db;
+        public string Description => "Удаление сотрудника";
+        public DeleteButton(JsonDatabase db) => _db = db;
+
+        public void Execute()
+        {
+            Console.WriteLine("=== УДАЛЕНИЕ СОТРУДНИКА ===");
+            
+
+            int deleteId = Proverka.IdRead("Введите ID сотрудника, которого хотите удалить:");
+            if (_db.Delete(deleteId))
+            {
+                Console.WriteLine("Сотрудник удален.");
+            }
+            else
+            {
+                Console.WriteLine("Нет сотрудника с таким ID.");
+            }
+
+            
+        }
+    }
+}
+
+
+
+// ==========================================
+// ФАЙЛ: ExitButton.cs
+// ==========================================
+using System;
+
+namespace dz1chernovik.Button;
+
+public class ExitButton : IMenuComand
+{
+
+    private readonly JsonDatabase _db;
+    public string Description => "Выход из программы";
+    public ExitButton(JsonDatabase db) => _db = db;
+
+
+    
+
+    public void Execute()
+    {
+        Console.WriteLine("Завершение работы программы. До свидания!");
+        Environment.Exit(0); 
+    }
+}
+
+
+// ==========================================
+// ФАЙЛ: IMenuComand.cs
+// ==========================================
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace dz1chernovik.Button
+{
+    public interface IMenuComand
+    {
+        string Description { get; }
+
+
+
+        void Execute();
+    }
+}
+
+
+
+// ==========================================
+// ФАЙЛ: ShowAllButton.cs
+// ==========================================
+namespace dz1chernovik.Button
+{
+    internal class ShowAllButton : IMenuComand
+    {
+        private readonly JsonDatabase _db;
+        public string Description => "Показать всех сотрудников";
+
+        public ShowAllButton(JsonDatabase db) => _db = db;
+
+        public void Execute()
+        {
+            
+            _db.PrintAll(_db.Get());
+        }
+    }
+}
+
+
+
+// ==========================================
+// ФАЙЛ: JsonDatabase.cs
+// ==========================================
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using System.Threading;
+
+public class JsonDatabase
+{
+    private readonly string _filePath;
+    private readonly JsonSerializerOptions _options = new() { WriteIndented = true };
+
+
+    private static readonly object _fileLock = new();
+
+    public JsonDatabase(string filepath = "db.json")
+    {
+        _filePath = filepath;
+
+        lock (_fileLock)
+        {
+            if (!File.Exists(_filePath))
+            {
+                SaveJsonWithRetry("[]");
+            }
+        }
+    }
+
+    public List<Sotrudnik> Get()
+    {
+
+        lock (_fileLock)
+        {
+            string json = ReadJsonWithRetry();
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return new List<Sotrudnik>();
+            }
+            return JsonSerializer.Deserialize<List<Sotrudnik>>(json, _options) ?? new List<Sotrudnik>();
+        }
+    }
+
+    public Sotrudnik? GetById(int id)
+    {
+        return Get().FirstOrDefault(p => p.Id == id);
+    }
+
+    public Sotrudnik Add(Sotrudnik newSotrudnik)
+    {
+        lock (_fileLock)
+        {
+            var sotrudnics = Get();
+            newSotrudnik.Id = sotrudnics.Count > 0 ? sotrudnics.Max(p => p.Id) + 1 : 1;
+
+            sotrudnics.Add(newSotrudnik);
+            SaveAll(sotrudnics);
+            return newSotrudnik;
+        }
+    }
+
+    public bool Update(Sotrudnik newSotrudnik)
+    {
+        lock (_fileLock)
+        {
+            var sotrudnics = Get();
+            var vibor = sotrudnics.FirstOrDefault(p => p.Id == newSotrudnik.Id);
+            if (vibor != null)
+            {
+                vibor.Name = newSotrudnik.Name;
+                vibor.Date = newSotrudnik.Date;
+                SaveAll(sotrudnics);
+                return true;
+            }
+            return false;
+        }
+    }
+
+    public bool Delete(int id)
+    {
+        lock (_fileLock)
+        {
+            var sotrudnics = Get();
+            var vibor = sotrudnics.FirstOrDefault(p => p.Id == id);
+            if (vibor != null)
+            {
+                sotrudnics.Remove(vibor);
+                SaveAll(sotrudnics);
+                return true;
+            }
+            return false;
+        }
+    }
+
+    public void PrintAll(List<Sotrudnik> list)
+    {
+        if (list.Count == 0)
+        {
+            Console.WriteLine("Список сотрудников пуст.");
+            return;
+        }
+        foreach (var w in list)
+        {
+            Console.WriteLine($"Id - {w.Id} Name - {w.Name} Date - {w.Date}");
+        }
+    }
+
+    private void SaveAll(List<Sotrudnik> itog)
+    {
+        string json = JsonSerializer.Serialize(itog, _options);
+        SaveJsonWithRetry(json);
+    }
+
+
+    private string ReadJsonWithRetry(int maxRetries = 10, int delayMs = 50)
+    {
+        for (int i = 0; i < maxRetries; i++)
+        {
+            try
+            {
+
+                using var stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using var reader = new StreamReader(stream); //превращение 1 0 в текст
+                return reader.ReadToEnd();
+            }
+            catch (IOException)
+            {
+
+                Thread.Sleep(delayMs);
+            }
+        }
+        throw new IOException($"Не удалось прочитать файл {_filePath}: он заблокирован другим пользователем.");
+    }
+
+    private void SaveJsonWithRetry(string json, int maxRetries = 10, int delayMs = 50)
+    {
+        string tempFilePath = _filePath + ".tmp";
+
+        for (int i = 0; i < maxRetries; i++)
+        {
+            try
+            {
+
+                using (var stream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var writer = new StreamWriter(stream))
+                {
+                    writer.Write(json);
+                }
+
+
+                File.Move(tempFilePath, _filePath, overwrite: true);
+                return;
+            }
+            catch (IOException)
+            {
+
+                Thread.Sleep(delayMs);
+            }
+        }
+        throw new IOException($"Не удалось сохранить файл {_filePath}: он заблокирован другим пользователем.");
+    }
+}
+
+
+// ==========================================
+// ФАЙЛ: Sotrudnik.cs
+// ==========================================
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+public class Sotrudnik
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public DateOnly Date { get; set; }
+}
+
+
