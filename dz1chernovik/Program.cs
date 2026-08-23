@@ -13,7 +13,7 @@ builder.Services.AddSingleton<IEmployeeRepository>(sp => new JsonDatabase("db.js
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
-{ы
+{
     app.UseSwagger();
     app.UseSwaggerUI();
 }
