@@ -1,7 +1,9 @@
 ﻿using dz1chernovik.DataBase;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Text.Json;
-
-namespace dz1chernovik;
+using System.Threading.Tasks;
 
 public class JsonDatabase : IEmployeeRepository
 {
@@ -10,59 +12,74 @@ public class JsonDatabase : IEmployeeRepository
     public JsonDatabase(string filePath)
     {
         _filePath = filePath;
-        if (!File.Exists(_filePath))
-        {
-            File.WriteAllText(_filePath, "[]");
-        }
     }
 
-    private List<Sotrudnik> LoadData()
+    // Вспомогательный асинхронный метод для чтения файла
+    private async Task<List<Sotrudnik>> ReadFromFileAsync()
     {
-        string json = File.ReadAllText(_filePath);
+        if (!File.Exists(_filePath))
+            return new List<Sotrudnik>();
+
+        string json = await File.ReadAllTextAsync(_filePath);
+        if (string.IsNullOrWhiteSpace(json))
+            return new List<Sotrudnik>();
+
         return JsonSerializer.Deserialize<List<Sotrudnik>>(json) ?? new List<Sotrudnik>();
     }
 
-    private void SaveData(List<Sotrudnik> list)
+    // Вспомогательный асинхронный метод для записи в файл
+    private async Task SaveToFileAsync(List<Sotrudnik> employees)
     {
-        string json = JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(_filePath, json);
+        string json = JsonSerializer.Serialize(employees, new JsonSerializerOptions { WriteIndented = true });
+        await File.WriteAllTextAsync(_filePath, json);
     }
 
-    public List<Sotrudnik> GetAll()
+    // --- Реализация интерфейса IEmployeeRepository ---
+
+    public async Task<List<Sotrudnik>> GetAllAsync()
     {
-        return LoadData();
+        return await ReadFromFileAsync();
     }
 
-    public Sotrudnik? GetById(int id)
+    public async Task<Sotrudnik?> GetByIdAsync(int id)
     {
-        return LoadData().FirstOrDefault(x => x.Id == id);
+        var employees = await ReadFromFileAsync();
+        return employees.FirstOrDefault(e => e.Id == id);
     }
 
-    public void AddSotrudnik(Sotrudnik item)
+    public async Task AddSotrudnikAsync(Sotrudnik employee)
     {
-        var list = LoadData();
-        int nextId = list.Count > 0 ? list.Max(x => x.Id) + 1 : 1;
-        item.Id = nextId;
-        list.Add(item);
-        SaveData(list);
+        var employees = await ReadFromFileAsync();
+
+        // Генерируем новый ID
+        int nextId = employees.Any() ? employees.Max(e => e.Id) + 1 : 1;
+        employee.Id = nextId;
+
+        employees.Add(employee);
+        await SaveToFileAsync(employees);
     }
 
-    public void ChangeSotrudnik(int id, string name, DateOnly date)
+    public async Task UpdateSotrudnikAsync(Sotrudnik employee)
     {
-        var list = LoadData();
-        var item = list.FirstOrDefault(x => x.Id == id);
-        if (item != null)
+        var employees = await ReadFromFileAsync();
+        int index = employees.FindIndex(e => e.Id == employee.Id);
+
+        if (index != -1)
         {
-            item.Name = name;
-            item.Date = date;
-            SaveData(list);
+            employees[index] = employee;
+            await SaveToFileAsync(employees);
         }
     }
 
-    public void DeleteSotrudnik(int id)
+    public async Task DeleteSotrudnikAsync(int id)
     {
-        var list = LoadData();
-        list.RemoveAll(x => x.Id == id);
-        SaveData(list);
+        var employees = await ReadFromFileAsync();
+        var employee = employees.FirstOrDefault(e => e.Id == id);
+
+        if (employee != null)
+        {
+            employees.Remove(employee);
+            await SaveToFileAsync(employees);
+        }
     }
 }

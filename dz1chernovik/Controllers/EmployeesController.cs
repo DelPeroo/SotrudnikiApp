@@ -1,7 +1,6 @@
 ﻿using dz1chernovik.DataBase;
 using Microsoft.AspNetCore.Mvc;
-
-namespace dz1chernovik;
+using System.Threading.Tasks;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -15,16 +14,16 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult GetAll()
+    public async Task<IActionResult> GetAll()
     {
-        var employees = _repository.GetAll();
+        var employees = await _repository.GetAllAsync();
         return Ok(employees);
     }
 
     [HttpGet("{id}")]
-    public IActionResult GetById(int id)
+    public async Task<IActionResult> GetById(int id)
     {
-        var employee = _repository.GetById(id);
+        var employee = await _repository.GetByIdAsync(id);
         if (employee == null)
             return NotFound();
 
@@ -32,31 +31,32 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpPost]
-    public IActionResult Create([FromBody] Sotrudnik employee)
+    public async Task<IActionResult> Create([FromBody] Sotrudnik employee)
     {
-        _repository.AddSotrudnik(employee);
+        await _repository.AddSotrudnikAsync(employee);
         return Ok(employee);
     }
 
     [HttpPut("{id}")]
-    public IActionResult Update(int id, [FromBody] Sotrudnik employee)
+    public async Task<IActionResult> Update(int id, [FromBody] Sotrudnik employee)
     {
-        var existing = _repository.GetById(id);
+        var existing = await _repository.GetByIdAsync(id);
         if (existing == null)
             return NotFound();
 
-        _repository.ChangeSotrudnik(id, employee.Name, employee.Date);
-        return Ok();
+        employee.Id = id;
+        await _repository.UpdateSotrudnikAsync(employee);
+        return Ok(employee);
     }
 
     [HttpDelete("{id}")]
-    public IActionResult Delete(int id)
+    public async Task<IActionResult> Delete(int id)
     {
-        var existing = _repository.GetById(id);
+        var existing = await _repository.GetByIdAsync(id);
         if (existing == null)
             return NotFound();
 
-        _repository.DeleteSotrudnik(id);
+        await _repository.DeleteSotrudnikAsync(id);
         return Ok();
     }
 }
